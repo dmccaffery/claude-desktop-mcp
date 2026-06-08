@@ -19,6 +19,17 @@ help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
 		| awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
 
+.PHONY: pr
+pr: license fmt lint test ## Prepares to create a pull request by running license, fmt, lint, and test
+
+.PHONY: commit
+commit: pr ## Run the pr target followed by ./commit.sh if present (the agent writes it to sign/land commits)
+	@ if [ -f ./commit.sh ]; then \
+		./commit.sh; \
+	else \
+		echo "No commit.sh found — nothing to run."; \
+	fi
+
 .PHONY: fmt
 fmt: node_modules ## Auto-format the repo: prettier (web/docs) + ruff (Python)
 	@ $(NPMBIN)/prettier --write .
