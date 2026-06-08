@@ -1,5 +1,5 @@
 # Copyright 2026 Deavon M. McCaffery
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: MIT
 
 """Console-script / ``python -m claude_desktop_mcp`` entrypoint.
 

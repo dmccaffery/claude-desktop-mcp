@@ -1,5 +1,5 @@
 # Copyright 2026 Deavon M. McCaffery
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: MIT
 
 """The cheap search index should surface sensible matches."""
 

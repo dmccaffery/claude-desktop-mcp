@@ -1,5 +1,5 @@
 # Copyright 2026 Deavon M. McCaffery
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: MIT
 
 """Structured event logging for inspecting how Claude Desktop loads the toolset.
 

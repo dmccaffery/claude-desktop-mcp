@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Copyright 2026 Deavon M. McCaffery
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: MIT
 
 #
 # Spin up the fake MCP servers locally and point Claude Desktop at them.

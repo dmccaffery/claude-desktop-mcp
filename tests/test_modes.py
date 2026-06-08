@@ -1,5 +1,5 @@
 # Copyright 2026 Deavon M. McCaffery
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: MIT
 
 """The two modes, exercised through the real MCP protocol via the in-memory client."""
 

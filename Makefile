@@ -8,7 +8,6 @@ NPMBIN := ./node_modules/.bin
 # tools/README.md). addlicense injects license headers. Ignores use absolute
 # globs because `go -C tools` runs addlicense with the working directory set to
 # tools/.
-LICENSE_FILE   := '$(CURDIR)/LICENSE'
 LICENSE_HOLDER := 'Deavon M. McCaffery'
 LICENSE_IGNORE := -ignore '$(CURDIR)/.git/**' \
 									-ignore '$(CURDIR)/.venv/**' \
@@ -31,7 +30,7 @@ lint: fmt ## Format all files in the repository and lint markdown
 
 .PHONY: license
 license: ## Inject license headers into source files (addlicense, pinned in tools/)
-	@ go -C tools tool addlicense -c $(LICENSE_HOLDER) -s=only -f $(LICENSE_FILE) $(LICENSE_IGNORE) '$(CURDIR)'
+	@ go -C tools tool addlicense -l mit -c $(LICENSE_HOLDER) -s=only $(LICENSE_IGNORE) '$(CURDIR)'
 
 .PHONY: licence
 licence: license ## Alias for the license target
