@@ -49,7 +49,7 @@ test: ## Run the test suite
 	uv run pytest
 
 .PHONY: inspector
-inspector: node_modules ## Open the MCP Inspector (pinned in package.json) against the local server (MODE=full|search)
+inspector: node_modules ## Open the MCP Inspector (pinned in package.json) against the local server (MODE=full|gateway)
 	MCP_MODE=$(or $(MODE),full) $(NPMBIN)/mcp-inspector uv run claude-desktop-mcp
 
 # Install the pinned npm dev tools (mcp-inspector, prettier, markdownlint) exactly as

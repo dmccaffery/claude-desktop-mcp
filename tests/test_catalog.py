@@ -46,3 +46,21 @@ def test_searchable_text_includes_name_and_tags() -> None:
     text = spec.searchable_text()
     assert "orders get order" in text
     assert "purchase" in text  # domain synonym tag
+
+
+def test_gateway_name_uses_agentcore_triple_underscore_namespacing() -> None:
+    spec = next(s for s in CATALOG if s.name == "orders_get_order")
+    assert spec.bare_name == "get_order"
+    assert spec.gateway_name() == "orders___get_order"
+
+
+def test_every_tool_splits_cleanly_into_target_and_action() -> None:
+    # gateway_name must round-trip back to a unique, domain-prefixed identifier.
+    seen: set[str] = set()
+    for spec in CATALOG:
+        gw = spec.gateway_name()
+        target, _, action = gw.partition("___")
+        assert target == spec.domain
+        assert action == spec.bare_name and action
+        assert gw not in seen, f"duplicate gateway name: {gw}"
+        seen.add(gw)

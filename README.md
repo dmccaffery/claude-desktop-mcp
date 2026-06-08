@@ -12,18 +12,35 @@ multi-service MCP setup.
 
 The mode is chosen at startup via the `MCP_MODE` environment variable:
 
-| Mode             | `tools/list` returns                                | `tools/call` accepts                                              | What it validates                                                                                 |
-| ---------------- | --------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `full` (default) | **all 108** catalog tools                           | any catalog tool                                                  | What Desktop does when an MCP server dumps a large toolset into context.                          |
-| `search`         | **only one** tool: `x_amz_bedrock_agentcore_search` | **any** catalog tool — even though only the search tool is listed | Whether Desktop can discover a tool via search and then call a tool it never saw in `tools/list`. |
+| Mode             | `tools/list` returns                                                                                          | What it validates                                                      |
+| ---------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `full` (default) | **all 108** catalog tools, natural names, **no** search tool                                                  | What Desktop does when a plain MCP server dumps a large toolset.       |
+| `gateway`        | **all 109** tools — `x_amz_bedrock_agentcore_search` **first**, then the 108 catalog tools as `target___tool` | What Desktop does against a faithful Amazon Bedrock AgentCore Gateway. |
 
-The `search` mode is **AgentCore-faithful**: like a real gateway, `tools/list` advertises only the search tool, but
-`tools/call` still works for any of the hidden 108 tools. The search tool takes a `{ "query": "..." }` argument, runs a
-cheap keyword (BM25-lite) ranking over the catalog, and returns the matching tool **definitions** (`name`,
-`description`, `inputSchema`, `score`) as JSON — which the client can then call directly by name.
+### `gateway` mode is a faithful AgentCore gateway
 
-> This is _not_ full natural-language semantic search. It is a small, dependency-free ranker that is "good enough" to
-> mimic discovery behaviour.
+A real
+[AgentCore Gateway with semantic search](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-using-mcp-semantic-search.html)
+does **not** hide your tools. Its `tools/list` returns the entire catalog with the built-in search tool
+[listed first](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-using-mcp-list.html). This mode
+mirrors that exactly:
+
+- **Naming** — every catalog tool is namespaced by its target with a triple-underscore delimiter
+  ([`target___tool`](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-tool-naming.html)), e.g.
+  `payments___refund_charge`.
+- **Search tool** — `x_amz_bedrock_agentcore_search` takes a single `{ "query": "..." }` argument and returns matching
+  tool **definitions** (`name`, `description`, `inputSchema`), ranked most-relevant first, under
+  **`result.structuredContent.tools`** — the exact shape the AWS samples read.
+- **Ranking** — a cheap, dependency-free BM25-lite ranker with a substring fallback stands in for real vector search.
+  Not natural-language semantic search; just "good enough" to mimic discovery.
+
+> **The catch this server is built to surface.** Because the gateway lists _everything_, semantic search saves no
+> context **on its own**. In the AWS reference agents (Strands, LangGraph) the _agent runtime_ exposes only the search
+> tool to the model and then **dynamically re-injects** the discovered tools into the model's tool list before the next
+> turn. A passive MCP client — like Claude Desktop / Cowork — just loads `tools/list` and never performs that
+> re-injection step. So pointed at a real gateway it sees the full 109-tool footprint, and a discovered tool's schema
+> _returned as data_ is **not** something it can promote into a callable tool. (There is no `search` mode that hides the
+> catalog: that would misrepresent what AgentCore does — the hiding happens agent-side, not at the gateway.)
 
 ## Requirements
 
@@ -36,15 +53,15 @@ cheap keyword (BM25-lite) ranking over the catalog, and returns the matching too
 ```sh
 uv sync --extra dev          # create the venv and install deps
 uv run claude-desktop-mcp    # run over stdio (MCP_MODE defaults to "full")
-MCP_MODE=search uv run claude-desktop-mcp
+MCP_MODE=gateway uv run claude-desktop-mcp
 ```
 
 ### Turnkey local run: `make run`
 
 `make run` (a thin wrapper over [`hack/run.sh`](hack/run.sh)) builds and health-checks both modes, **backs up** your
-`claude_desktop_config.json`, swaps in a config wired to this working copy (`fake-mcp-full` + `fake-mcp-search`, logging
-to `logs/`), restarts Claude Desktop, and tails the event logs. Press **Ctrl-C** and a trap restores your original
-config. Set `NO_RESTART=1` to skip the automatic Claude Desktop restart.
+`claude_desktop_config.json`, swaps in a config wired to this working copy (`fake-mcp-full` + `fake-mcp-gateway`,
+logging to `logs/`), restarts Claude Desktop, and tails the event logs. Press **Ctrl-C** and a trap restores your
+original config. Set `NO_RESTART=1` to skip the automatic Claude Desktop restart.
 
 ```sh
 make run        # or: ./hack/run.sh
@@ -66,10 +83,10 @@ repo — `uvx` clones and builds it on demand, so **no local path is required**:
       "args": ["--from", "git+https://github.com/dmccaffery/claude-desktop-mcp", "claude-desktop-mcp"],
       "env": { "MCP_MODE": "full" }
     },
-    "fake-mcp-search": {
+    "fake-mcp-gateway": {
       "command": "uvx",
       "args": ["--from", "git+https://github.com/dmccaffery/claude-desktop-mcp", "claude-desktop-mcp"],
-      "env": { "MCP_MODE": "search" }
+      "env": { "MCP_MODE": "gateway" }
     }
   }
 }
@@ -89,7 +106,7 @@ paths, `~`, and `$HOME` are not expanded:
 {
   "command": "uvx",
   "args": ["--from", "/absolute/path/to/claude-desktop-mcp", "claude-desktop-mcp"],
-  "env": { "MCP_MODE": "search" }
+  "env": { "MCP_MODE": "gateway" }
 }
 ```
 
@@ -109,8 +126,8 @@ Once a server is connected, drive it from any MCP client (Claude Desktop, Claude
 that naturally spans several domains. Every tool returns a canned echo, so the _outcome_ is irrelevant — what you're
 validating is how the model **selects, discovers, and calls** tools, and what the toolset costs in context.
 
-> **Enable one server at a time.** If both `fake-mcp-full` and `fake-mcp-search` are active at once, the full catalog is
-> already visible and the search test is meaningless.
+> **Enable one server at a time.** Both modes advertise the whole catalog, so running `fake-mcp-full` and
+> `fake-mcp-gateway` together just doubles the tools the model sees and muddies the per-server footprint in the logs.
 
 Paste this multi-domain prompt (it typically chains 8–12 tool calls across users → orders → payments → Jira → Slack →
 email):
@@ -131,13 +148,15 @@ Narrate each step and show me which tool you used for it.
 
 What each mode validates:
 
-- **`fake-mcp-full` (108 tools):** tool-selection accuracy when the whole catalog is dumped into context. Watch whether
-  the model picks the right `orders_*` / `payments_*` / `jira_*` tools, and check the footprint in `logs/full.jsonl`.
-- **`fake-mcp-search` (search only):** the model sees only `x_amz_bedrock_agentcore_search`, so it must search the
-  gateway for each capability, discover the hidden tools, and call them. In `logs/search.jsonl` you'll see `call_tool`
-  events with `"hidden": true` — the model calling tools that were never in `tools/list`.
+- **`fake-mcp-full` (108 tools, no search):** tool-selection accuracy when the whole catalog is dumped into context.
+  Watch whether the model picks the right `orders_*` / `payments_*` / `jira_*` tools, and check the footprint in
+  `logs/full.jsonl`.
+- **`fake-mcp-gateway` (109 tools, search first):** a faithful AgentCore gateway. The model sees the search tool _and_
+  all 108 `target___tool` tools. The question is behavioural: does it lean on `x_amz_bedrock_agentcore_search` to narrow
+  down, or just scan the full catalog like any other large toolset? And does it correctly call tools by their
+  `target___tool` names? Check the footprint and `call_tool` sequence in `logs/gateway.jsonl`.
 
-To force the discovery loop explicitly (nice for the search server):
+To probe the discovery behaviour explicitly:
 
 ```text
 I don't know what tools you have. Search your tool gateway to discover
@@ -146,22 +165,27 @@ For each area, tell me which tools you found, then call one of them with
 sample arguments and show me the result.
 ```
 
-After a run, compare the logs — this is the concrete "how does the context window handle a large toolset" answer (see
-[Observability](#observability-measuring-the-context-footprint)):
+In `gateway` mode the discovered tools are already in `tools/list`, so a well-behaved client can call them straight
+away. The interesting failure mode is a client that treats the search result as a hint about tools it _doesn't_ have —
+calling search, getting schemas back, and then not knowing how to invoke them. That's the "schemas returned as data
+aren't callable tools" gap that only an agent runtime with dynamic re-injection closes.
+
+After a run, compare the logs (see [Observability](#observability-measuring-the-context-footprint)):
 
 ```sh
-# Footprint per listing: full ≈ 108 tools / ~9k tokens vs search = 1 tool / ~150 tokens
-jq -c 'select(.event=="list_tools") | {mode, tool_count, est_tokens}' logs/full.jsonl logs/search.jsonl
+# Footprint per listing: full = 108 tools vs gateway = 109 tools (catalog + search).
+# A faithful gateway is NOT smaller — that's the point.
+jq -c 'select(.event=="list_tools") | {mode, tool_count, est_tokens}' logs/full.jsonl logs/gateway.jsonl
 
-# Tools the model discovered via search and then called (never listed)
-jq -c 'select(.event=="call_tool" and .hidden==true) | .tool' logs/search.jsonl
+# Did the model actually use the search tool, and in what order did it call things?
+jq -c 'select(.event=="call_tool") | {tool, hidden}' logs/gateway.jsonl
 ```
 
 ## Environment variables
 
 | Variable               | Default                          | Meaning                                              |
 | ---------------------- | -------------------------------- | ---------------------------------------------------- |
-| `MCP_MODE`             | `full`                           | `full` or `search`.                                  |
+| `MCP_MODE`             | `full`                           | `full` or `gateway`.                                 |
 | `MCP_SEARCH_TOP_K`     | `5`                              | How many tools the search tool returns.              |
 | `MCP_SEARCH_TOOL_NAME` | `x_amz_bedrock_agentcore_search` | Name of the search tool.                             |
 | `MCP_LOG_FILE`         | _(unset)_                        | If set, append structured JSONL events to this file. |
@@ -178,18 +202,20 @@ Key events:
 
 - **`list_tools`** — the headline metric. Records the **`tool_count`**, the serialized **`bytes`**, and an estimated
   **`est_tokens`** of the returned tool definitions. This is the toolset's context footprint. Comparing `full` vs
-  `search`:
+  `gateway`:
 
   ```text
-  full:   {"event":"list_tools","mode":"full",  "tool_count":108,"bytes":...,"est_tokens":~9100}
-  search: {"event":"list_tools","mode":"search","tool_count":1,  "bytes":592,"est_tokens":148}
+  full:    {"event":"list_tools","mode":"full",   "tool_count":108,"bytes":...,"est_tokens":~9100}
+  gateway: {"event":"list_tools","mode":"gateway","tool_count":109,"bytes":...,"est_tokens":~9400}
   ```
 
-  That ~60× footprint difference is the concrete answer to "how does the context window handle the large toolset."
+  The faithful gateway is _slightly larger_ (the whole catalog under longer `target___tool` names, plus the search
+  tool). The lesson: a gateway's semantic search reduces context only when the **consuming agent** uses it to expose a
+  subset to its model — not at the `tools/list` boundary a passive client reads.
 
 - **`call_tool`** — records the `tool`, its `arguments`, and a **`hidden`** flag that is `true` when the called tool was
-  _not_ in the listing the client last saw (the payoff of search mode — Desktop calling a discovered, never-listed
-  tool).
+  _not_ in the listing the client last saw. In `gateway` mode everything is listed, so this is `false`; in `full` mode
+  the only hidden-but-callable tool is `x_amz_bedrock_agentcore_search` itself.
 
 - **`initialize`** — client name/version and protocol version (which Desktop build).
 
@@ -219,8 +245,9 @@ npx @modelcontextprotocol/inspector \
   uvx --from git+https://github.com/dmccaffery/claude-desktop-mcp claude-desktop-mcp
 ```
 
-In `search` mode: list tools (you'll see one), call `x_amz_bedrock_agentcore_search` with a query, then call one of the
-discovered tools by name and confirm it succeeds.
+In `gateway` mode: list tools (the search tool is first, then all 108 `target___tool` tools), call
+`x_amz_bedrock_agentcore_search` with a query, read the ranked definitions under `structuredContent.tools`, then call
+one of them by its full `target___tool` name and confirm it succeeds.
 
 ## Project layout
 

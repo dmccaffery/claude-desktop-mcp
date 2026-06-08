@@ -76,6 +76,28 @@ class ToolSpec:
             parts.append(p.description)
         return " ".join(parts).lower()
 
+    @property
+    def bare_name(self) -> str:
+        """The tool name without its domain prefix.
+
+        In AgentCore terms this is the name the *target's* handler sees — e.g. a
+        Lambda exposes ``send_push``, and the gateway prepends the target name. Our
+        catalog names already embed the domain (``notifications_send_push``), so we
+        strip it back off to recover the bare action.
+        """
+        prefix = f"{self.domain}_"
+        return self.name[len(prefix) :] if self.name.startswith(prefix) else self.name
+
+    def gateway_name(self) -> str:
+        """The MCP-visible name under an AgentCore gateway: ``target___tool``.
+
+        Mirrors Amazon Bedrock AgentCore Gateway's naming convention, where every
+        tool is namespaced by its target with a triple-underscore delimiter (e.g.
+        ``notifications___send_push``). See
+        https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-tool-naming.html
+        """
+        return f"{self.domain}___{self.bare_name}"
+
 
 # --------------------------------------------------------------------------- #
 # Terse parameter builders (keep the catalog table readable)

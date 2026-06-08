@@ -19,15 +19,17 @@ from claude_desktop_mcp.observability import EventLogger, listing_footprint
 
 
 class ModeMiddleware(Middleware):
-    """Filters what ``tools/list`` advertises, without touching call routing.
+    """Shapes what ``tools/list`` advertises, without touching call routing.
 
-    * ``full``   — advertise every catalog tool, hide the search tool.
-    * ``search`` — advertise only the search tool, hide the catalog.
+    * ``full``    — a plain large MCP server: advertise every catalog tool, hide the
+      search tool.
+    * ``gateway`` — a faithful Amazon Bedrock AgentCore gateway: advertise *every*
+      tool, with the ``x_amz_bedrock_agentcore_search`` tool listed **first** (per the
+      AWS docs). The gateway does not hide the catalog — semantic search is an
+      optimisation the *consuming agent* may use to expose only a subset to its model.
 
     ``on_call_tool`` is intentionally *not* overridden: every registered tool stays
-    callable in both modes. That is what makes ``search`` mode faithful to a real
-    AgentCore gateway, where ``tools/list`` shows one tool but ``tools/call`` works
-    for any underlying tool the client has discovered.
+    callable, so a search-then-call flow resolves against the underlying tool.
     """
 
     def __init__(self, mode: str, search_tool_name: str) -> None:
@@ -36,8 +38,12 @@ class ModeMiddleware(Middleware):
 
     async def on_list_tools(self, context: MiddlewareContext, call_next):
         tools = list(await call_next(context))
-        if self.mode == "search":
-            return [t for t in tools if t.name == self.search_tool_name]
+        if self.mode == "gateway":
+            # AgentCore lists the search tool first, then every catalog tool.
+            search = [t for t in tools if t.name == self.search_tool_name]
+            others = [t for t in tools if t.name != self.search_tool_name]
+            return search + others
+        # full: a generic server with no gateway search surface.
         return [t for t in tools if t.name != self.search_tool_name]
 
 
@@ -92,7 +98,8 @@ class ObservabilityMiddleware(Middleware):
         if self._last_listed:
             hidden = name not in self._last_listed
         else:  # no listing observed yet — fall back to the structural definition
-            hidden = self.mode == "search" and name != self.search_tool_name
+            # gateway advertises everything; full hides only the search tool.
+            hidden = self.mode == "full" and name == self.search_tool_name
         self.logger.emit(
             "call_tool",
             mode=self.mode,

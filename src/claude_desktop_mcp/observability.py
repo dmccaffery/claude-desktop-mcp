@@ -9,9 +9,12 @@ is a faithful proxy for "how the context window handles the toolset":
 
 * ``list_tools`` events carry the **footprint** — the tool count plus the serialized
   byte size and an estimated token count of the returned tool definitions. Comparing
-  ``full`` vs ``search`` mode footprints is the concrete answer to the question.
+  ``full`` vs ``gateway`` mode footprints answers the question — and reveals that a
+  faithful AgentCore gateway is *not* smaller: it lists the whole catalog plus the
+  search tool, so the token saving only materialises if the client uses search to
+  avoid loading everything.
 * ``call_tool`` events record which tool was invoked and whether it was ``hidden``
-  (not advertised in the current listing) — the payoff of search mode.
+  (not advertised in the current listing).
 
 Events are written to stderr (Claude Desktop captures MCP-server stderr into
 ``~/Library/Logs/Claude/``) and, when ``MCP_LOG_FILE`` is set, appended as JSONL.
