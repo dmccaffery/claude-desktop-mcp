@@ -89,3 +89,31 @@ async def test_gateway_footprint_is_not_smaller_than_full(tmp_path: Path) -> Non
     assert full["tool_count"] == len(CATALOG)
     assert gateway["tool_count"] == len(CATALOG) + 1  # catalog + search tool
     assert gateway["est_tokens"] >= full["est_tokens"]
+
+
+async def test_search_footprint_is_one_tool_and_calls_are_hidden(
+    tmp_path: Path,
+) -> None:
+    """The search flavour collapses the listing to a single tool.
+
+    This is the footprint the agent-side hiding actually buys: ``tools/list`` shows
+    only the search tool, yet a discovered catalog tool remains callable — and is
+    flagged ``hidden`` because the client never saw it advertised.
+    """
+    log_file = tmp_path / "search.jsonl"
+    server = build_server(Config(mode="search", log_file=str(log_file)))
+
+    async with Client(server) as client:
+        await client.list_tools()
+        await client.call_tool("orders_get_order", {"order_id": "A-123"})
+
+    by_type: dict[str, list[dict]] = {}
+    for event in _read_events(log_file):
+        by_type.setdefault(event["event"], []).append(event)
+
+    footprint = by_type["list_tools"][-1]
+    assert footprint["tool_count"] == 1
+    assert footprint["tools"] == [DEFAULT_SEARCH_TOOL_NAME]
+
+    hidden_calls = [e for e in by_type["call_tool"] if e["tool"] == "orders_get_order"]
+    assert hidden_calls and hidden_calls[0]["hidden"] is True

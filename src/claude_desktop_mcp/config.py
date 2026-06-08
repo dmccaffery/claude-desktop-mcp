@@ -16,14 +16,14 @@ from dataclasses import dataclass
 #: The default name of the AgentCore-style search tool (matches the AWS docs).
 DEFAULT_SEARCH_TOOL_NAME = "x_amz_bedrock_agentcore_search"
 
-_VALID_MODES = ("full", "gateway")
+_VALID_MODES = ("full", "gateway", "search")
 
 
 @dataclass(frozen=True)
 class Config:
     """Resolved server configuration."""
 
-    mode: str = "full"  # "full" | "gateway"
+    mode: str = "full"  # "full" | "gateway" | "search"
     search_tool_name: str = DEFAULT_SEARCH_TOOL_NAME
     search_top_k: int = 5
     server_name: str = "claude-desktop-mcp"

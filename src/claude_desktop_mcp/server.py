@@ -25,8 +25,9 @@ from claude_desktop_mcp.search import SearchIndex
 def _mcp_name(spec: ToolSpec, prefixed: bool) -> str:
     """The name a tool is advertised and called under, given the active mode.
 
-    ``gateway`` mode mirrors AgentCore's ``target___tool`` namespacing; ``full`` mode
-    keeps the catalog's natural names (a plain large MCP server).
+    ``gateway`` mode mirrors AgentCore's ``target___tool`` namespacing; ``full`` and
+    ``search`` modes keep the catalog's natural names (a plain large MCP server, with
+    ``search`` additionally hiding the catalog from ``tools/list``).
     """
     return spec.gateway_name() if prefixed else spec.name
 

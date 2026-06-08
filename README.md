@@ -8,7 +8,7 @@ payments, Jira, analytics, notifications, storage). None of them do real work �
 but they have realistic names, descriptions, and input schemas so the server is a faithful stand-in for a big
 multi-service MCP setup.
 
-## Two modes
+## Three modes
 
 The mode is chosen at startup via the `MCP_MODE` environment variable:
 
@@ -16,6 +16,7 @@ The mode is chosen at startup via the `MCP_MODE` environment variable:
 | ---------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
 | `full` (default) | **all 108** catalog tools, natural names, **no** search tool                                                  | What Desktop does when a plain MCP server dumps a large toolset.       |
 | `gateway`        | **all 109** tools — `x_amz_bedrock_agentcore_search` **first**, then the 108 catalog tools as `target___tool` | What Desktop does against a faithful Amazon Bedrock AgentCore Gateway. |
+| `search`         | **only** the `x_amz_bedrock_agentcore_search` tool; the 108-tool catalog is hidden but stays callable          | What a consuming agent does in front of a gateway: expose just search, discover the rest on demand. |
 
 ### `gateway` mode is a faithful AgentCore gateway
 
@@ -39,8 +40,26 @@ mirrors that exactly:
 > tool to the model and then **dynamically re-injects** the discovered tools into the model's tool list before the next
 > turn. A passive MCP client — like Claude Desktop / Cowork — just loads `tools/list` and never performs that
 > re-injection step. So pointed at a real gateway it sees the full 109-tool footprint, and a discovered tool's schema
-> _returned as data_ is **not** something it can promote into a callable tool. (There is no `search` mode that hides the
-> catalog: that would misrepresent what AgentCore does — the hiding happens agent-side, not at the gateway.)
+> _returned as data_ is **not** something it can promote into a callable tool.
+
+### `search` mode models the agent-side hiding
+
+`gateway` mode is faithful to what an AgentCore gateway puts on the wire — the whole catalog, search tool first — so it
+does **not** shrink the listing. The context saving AgentCore advertises happens one layer up, in the _consuming agent_,
+which exposes only the search tool to its model and re-injects discovered tools on demand. `search` mode makes that layer
+observable here:
+
+- **`tools/list` returns one tool** — just `x_amz_bedrock_agentcore_search`. The 108-tool catalog is hidden, so this is
+  the smallest possible footprint (see `logs/search.jsonl`).
+- **The catalog stays callable.** Hiding happens only at `tools/list`; `tools/call` still resolves any catalog tool by
+  its **natural name** (`orders_get_order`, not `orders___get_order` — there is no gateway namespacing in this mode). A
+  client that discovers a tool via search can call it straight away.
+- **The interesting failure mode** is a passive client that treats the search result as data about tools it _doesn't_
+  have, rather than tools it can now call. Observability flags every such call as `hidden: true` (the tool was never in
+  the listing the client saw), so the logs show whether the client followed search-then-call or got stuck.
+
+This is **not** a claim about what a gateway does on the wire — it doesn't hide the catalog (that's `gateway`). `search`
+mode is a stand-in for the agent runtime that sits in front of one.
 
 ## Requirements
 
@@ -155,6 +174,10 @@ What each mode validates:
   all 108 `target___tool` tools. The question is behavioural: does it lean on `x_amz_bedrock_agentcore_search` to narrow
   down, or just scan the full catalog like any other large toolset? And does it correctly call tools by their
   `target___tool` names? Check the footprint and `call_tool` sequence in `logs/gateway.jsonl`.
+- **`fake-mcp-search` (1 tool, catalog hidden):** the consuming-agent layer. The model sees only the search tool, so the
+  only way to reach the catalog is search-then-call by natural name. The question is whether the client promotes a
+  discovered tool into an actual call, or treats the search result as inert data. Check `logs/search.jsonl` — every
+  catalog call is flagged `hidden: true`.
 
 To probe the discovery behaviour explicitly:
 
@@ -185,7 +208,7 @@ jq -c 'select(.event=="call_tool") | {tool, hidden}' logs/gateway.jsonl
 
 | Variable               | Default                          | Meaning                                              |
 | ---------------------- | -------------------------------- | ---------------------------------------------------- |
-| `MCP_MODE`             | `full`                           | `full` or `gateway`.                                 |
+| `MCP_MODE`             | `full`                           | `full`, `gateway`, or `search`.                     |
 | `MCP_SEARCH_TOP_K`     | `5`                              | How many tools the search tool returns.              |
 | `MCP_SEARCH_TOOL_NAME` | `x_amz_bedrock_agentcore_search` | Name of the search tool.                             |
 | `MCP_LOG_FILE`         | _(unset)_                        | If set, append structured JSONL events to this file. |
@@ -207,15 +230,19 @@ Key events:
   ```text
   full:    {"event":"list_tools","mode":"full",   "tool_count":108,"bytes":...,"est_tokens":~9100}
   gateway: {"event":"list_tools","mode":"gateway","tool_count":109,"bytes":...,"est_tokens":~9400}
+  search:  {"event":"list_tools","mode":"search", "tool_count":1,  "bytes":...,"est_tokens":~120}
   ```
 
   The faithful gateway is _slightly larger_ (the whole catalog under longer `target___tool` names, plus the search
-  tool). The lesson: a gateway's semantic search reduces context only when the **consuming agent** uses it to expose a
-  subset to its model — not at the `tools/list` boundary a passive client reads.
+  tool). `search` is the only mode that actually shrinks the listing — and it does so by hiding the catalog the way a
+  consuming agent would, not the way a gateway does. The lesson: a gateway's semantic search reduces context only when
+  the **consuming agent** uses it to expose a subset to its model — not at the `tools/list` boundary a passive client
+  reads.
 
 - **`call_tool`** — records the `tool`, its `arguments`, and a **`hidden`** flag that is `true` when the called tool was
   _not_ in the listing the client last saw. In `gateway` mode everything is listed, so this is `false`; in `full` mode
-  the only hidden-but-callable tool is `x_amz_bedrock_agentcore_search` itself.
+  the only hidden-but-callable tool is `x_amz_bedrock_agentcore_search` itself; in `search` mode every catalog call is
+  `hidden` (only the search tool was advertised).
 
 - **`initialize`** — client name/version and protocol version (which Desktop build).
 

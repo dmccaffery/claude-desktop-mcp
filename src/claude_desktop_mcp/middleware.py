@@ -1,7 +1,7 @@
 # Copyright 2026 Deavon M. McCaffery
 # SPDX-License-Identifier: MIT
 
-"""FastMCP middleware implementing the two modes and the observability trace.
+"""FastMCP middleware implementing the modes and the observability trace.
 
 Two middlewares cooperate, and **order matters**. FastMCP runs the first-added
 middleware as the outermost layer, so we add :class:`ObservabilityMiddleware` first
@@ -27,9 +27,14 @@ class ModeMiddleware(Middleware):
       tool, with the ``x_amz_bedrock_agentcore_search`` tool listed **first** (per the
       AWS docs). The gateway does not hide the catalog — semantic search is an
       optimisation the *consuming agent* may use to expose only a subset to its model.
+    * ``search``  — advertise *only* the search tool, hide the whole catalog. This
+      models the consuming-agent side of the gateway story: exposing just the search
+      tool to the model and discovering the rest on demand. (A real gateway does not
+      do this at ``tools/list`` — see ``gateway`` — but an agent in front of one does.)
 
     ``on_call_tool`` is intentionally *not* overridden: every registered tool stays
-    callable, so a search-then-call flow resolves against the underlying tool.
+    callable in all modes, so a search-then-call flow resolves against the underlying
+    tool even when ``tools/list`` advertised only the search tool.
     """
 
     def __init__(self, mode: str, search_tool_name: str) -> None:
@@ -43,6 +48,9 @@ class ModeMiddleware(Middleware):
             search = [t for t in tools if t.name == self.search_tool_name]
             others = [t for t in tools if t.name != self.search_tool_name]
             return search + others
+        if self.mode == "search":
+            # Only the search tool is advertised; the catalog stays callable.
+            return [t for t in tools if t.name == self.search_tool_name]
         # full: a generic server with no gateway search surface.
         return [t for t in tools if t.name != self.search_tool_name]
 
@@ -98,8 +106,14 @@ class ObservabilityMiddleware(Middleware):
         if self._last_listed:
             hidden = name not in self._last_listed
         else:  # no listing observed yet — fall back to the structural definition
-            # gateway advertises everything; full hides only the search tool.
-            hidden = self.mode == "full" and name == self.search_tool_name
+            # gateway advertises everything; full hides only the search tool;
+            # search hides everything but the search tool.
+            if self.mode == "search":
+                hidden = name != self.search_tool_name
+            elif self.mode == "full":
+                hidden = name == self.search_tool_name
+            else:  # gateway
+                hidden = False
         self.logger.emit(
             "call_tool",
             mode=self.mode,

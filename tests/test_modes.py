@@ -1,7 +1,7 @@
 # Copyright 2026 Deavon M. McCaffery
 # SPDX-License-Identifier: MIT
 
-"""The two modes, exercised through the real MCP protocol via the in-memory client."""
+"""The three modes, exercised through the real MCP protocol via the in-memory client."""
 
 from __future__ import annotations
 
@@ -62,3 +62,38 @@ async def test_gateway_search_returns_agentcore_faithful_definitions() -> None:
     assert set(first) == {"name", "description", "inputSchema"}
     assert first["name"].startswith("orders___")
     assert first["inputSchema"]["type"] == "object"
+
+
+async def test_search_mode_lists_only_the_search_tool() -> None:
+    """The search flavour advertises one tool and hides the whole catalog."""
+    server = build_server(Config(mode="search"))
+    async with Client(server) as client:
+        tools = await client.list_tools()
+    names = [t.name for t in tools]
+    assert names == [DEFAULT_SEARCH_TOOL_NAME]
+
+
+async def test_search_mode_hidden_catalog_tool_is_still_callable() -> None:
+    """``tools/list`` shows one tool, but any discovered tool stays callable."""
+    server = build_server(Config(mode="search"))
+    async with Client(server) as client:
+        result = await client.call_tool("orders_get_order", {"order_id": "A-123"})
+    payload = result.structured_content
+    assert payload["ok"] is True
+    assert payload["tool"] == "orders_get_order"  # natural name, not namespaced
+    assert payload["arguments"] == {"order_id": "A-123"}
+
+
+async def test_search_mode_returns_natural_named_definitions() -> None:
+    server = build_server(Config(mode="search", search_top_k=5))
+    async with Client(server) as client:
+        result = await client.call_tool(
+            DEFAULT_SEARCH_TOOL_NAME, {"query": "find a customer purchase order"}
+        )
+    tools = result.structured_content["tools"]
+    assert 1 <= len(tools) <= 5
+    first = tools[0]
+    assert set(first) == {"name", "description", "inputSchema"}
+    # search keeps natural catalog names — no AgentCore ``target___tool`` namespacing.
+    assert first["name"] == "orders_get_order" or "___" not in first["name"]
+    assert not any("___" in t["name"] for t in tools)
