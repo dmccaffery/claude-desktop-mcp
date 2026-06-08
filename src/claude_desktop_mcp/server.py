@@ -156,7 +156,11 @@ def build_server(config: Config | None = None) -> FastMCP:
     logger = EventLogger(config.log_file, config.log_level)
     index = SearchIndex(CATALOG)
 
-    mcp: FastMCP = FastMCP(name=config.server_name)
+    # list_page_size caps every list operation (tools/list, resources/list,
+    # prompts/list); FastMCP then returns a nextCursor for the client to page on.
+    mcp: FastMCP = FastMCP(
+        name=config.server_name, list_page_size=config.list_page_size
+    )
 
     # In gateway mode, tools carry AgentCore's ``target___tool`` namespacing.
     prefixed = config.mode == "gateway"
@@ -177,6 +181,7 @@ def build_server(config: Config | None = None) -> FastMCP:
         catalog_size=len(CATALOG),
         search_tool_name=config.search_tool_name,
         search_top_k=config.search_top_k,
+        list_page_size=config.list_page_size,
         log_file=config.log_file,
     )
     return mcp

@@ -12,11 +12,11 @@ multi-service MCP setup.
 
 The mode is chosen at startup via the `MCP_MODE` environment variable:
 
-| Mode             | `tools/list` returns                                                                                          | What it validates                                                      |
-| ---------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `full` (default) | **all 108** catalog tools, natural names, **no** search tool                                                  | What Desktop does when a plain MCP server dumps a large toolset.       |
-| `gateway`        | **all 109** tools — `x_amz_bedrock_agentcore_search` **first**, then the 108 catalog tools as `target___tool` | What Desktop does against a faithful Amazon Bedrock AgentCore Gateway. |
-| `search`         | **only** the `x_amz_bedrock_agentcore_search` tool; the 108-tool catalog is hidden but stays callable          | What a consuming agent does in front of a gateway: expose just search, discover the rest on demand. |
+| Mode             | `tools/list` returns                                                                                          | What it validates                                                                                   |
+| ---------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `full` (default) | **all 108** catalog tools, natural names, **no** search tool                                                  | What Desktop does when a plain MCP server dumps a large toolset.                                    |
+| `gateway`        | **all 109** tools — `x_amz_bedrock_agentcore_search` **first**, then the 108 catalog tools as `target___tool` | What Desktop does against a faithful Amazon Bedrock AgentCore Gateway.                              |
+| `search`         | **only** the `x_amz_bedrock_agentcore_search` tool; the 108-tool catalog is hidden but stays callable         | What a consuming agent does in front of a gateway: expose just search, discover the rest on demand. |
 
 ### `gateway` mode is a faithful AgentCore gateway
 
@@ -46,8 +46,8 @@ mirrors that exactly:
 
 `gateway` mode is faithful to what an AgentCore gateway puts on the wire — the whole catalog, search tool first — so it
 does **not** shrink the listing. The context saving AgentCore advertises happens one layer up, in the _consuming agent_,
-which exposes only the search tool to its model and re-injects discovered tools on demand. `search` mode makes that layer
-observable here:
+which exposes only the search tool to its model and re-injects discovered tools on demand. `search` mode makes that
+layer observable here:
 
 - **`tools/list` returns one tool** — just `x_amz_bedrock_agentcore_search`. The 108-tool catalog is hidden, so this is
   the smallest possible footprint (see `logs/search.jsonl`).
@@ -206,14 +206,15 @@ jq -c 'select(.event=="call_tool") | {tool, hidden}' logs/gateway.jsonl
 
 ## Environment variables
 
-| Variable               | Default                          | Meaning                                              |
-| ---------------------- | -------------------------------- | ---------------------------------------------------- |
-| `MCP_MODE`             | `full`                           | `full`, `gateway`, or `search`.                     |
-| `MCP_SEARCH_TOP_K`     | `5`                              | How many tools the search tool returns.              |
-| `MCP_SEARCH_TOOL_NAME` | `x_amz_bedrock_agentcore_search` | Name of the search tool.                             |
-| `MCP_LOG_FILE`         | _(unset)_                        | If set, append structured JSONL events to this file. |
-| `MCP_LOG_LEVEL`        | `info`                           | `info` or `debug`.                                   |
-| `MCP_SERVER_NAME`      | `claude-desktop-mcp`             | Server name reported to the client.                  |
+| Variable               | Default                          | Meaning                                                                                  |
+| ---------------------- | -------------------------------- | ---------------------------------------------------------------------------------------- |
+| `MCP_MODE`             | `full`                           | `full`, `gateway`, or `search`.                                                          |
+| `MCP_SEARCH_TOP_K`     | `5`                              | How many tools the search tool returns.                                                  |
+| `MCP_SEARCH_TOOL_NAME` | `x_amz_bedrock_agentcore_search` | Name of the search tool.                                                                 |
+| `MCP_LOG_FILE`         | _(unset)_                        | If set, append structured JSONL events to this file.                                     |
+| `MCP_LOG_LEVEL`        | `info`                           | `info` or `debug`.                                                                       |
+| `MCP_SERVER_NAME`      | `claude-desktop-mcp`             | Server name reported to the client.                                                      |
+| `MCP_LIST_PAGE_SIZE`   | `50`                             | Max items per page for `tools/list` (and other list ops); clients page via `nextCursor`. |
 
 ## Observability: measuring the context footprint
 

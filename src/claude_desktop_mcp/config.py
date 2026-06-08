@@ -26,6 +26,7 @@ class Config:
     mode: str = "full"  # "full" | "gateway" | "search"
     search_tool_name: str = DEFAULT_SEARCH_TOOL_NAME
     search_top_k: int = 5
+    list_page_size: int = 50  # max items per page for tools/resources/prompts listings
     server_name: str = "claude-desktop-mcp"
     log_file: str | None = None
     log_level: str = "info"  # "info" | "debug"
@@ -48,6 +49,16 @@ class Config:
         if top_k < 1:
             raise ValueError(f"MCP_SEARCH_TOP_K must be >= 1, got {top_k}")
 
+        page_size_raw = env.get("MCP_LIST_PAGE_SIZE", "50").strip()
+        try:
+            page_size = int(page_size_raw)
+        except ValueError as exc:
+            raise ValueError(
+                f"MCP_LIST_PAGE_SIZE must be an integer, got {page_size_raw!r}"
+            ) from exc
+        if page_size < 1:
+            raise ValueError(f"MCP_LIST_PAGE_SIZE must be >= 1, got {page_size}")
+
         log_file = env.get("MCP_LOG_FILE", "").strip() or None
         level = env.get("MCP_LOG_LEVEL", "info").strip().lower()
 
@@ -58,6 +69,7 @@ class Config:
             ).strip()
             or DEFAULT_SEARCH_TOOL_NAME,
             search_top_k=top_k,
+            list_page_size=page_size,
             server_name=env.get("MCP_SERVER_NAME", "claude-desktop-mcp").strip()
             or "claude-desktop-mcp",
             log_file=log_file,
