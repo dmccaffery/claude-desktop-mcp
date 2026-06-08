@@ -1,0 +1,12 @@
+{
+  "name": "claude-desktop-mcp",
+  "private": true,
+  "type": "module",
+  "description": "Lint, formatting, and test toolchain for the claude desktop mcp demo.",
+  "license": "MIT",
+  "devDependencies": {
+    "markdownlint-cli2": "^0.22.1",
+    "prettier": "^3.0.0",
+    "@modelcontextprotocol/inspector": "^0.22.0"
+  }
+}

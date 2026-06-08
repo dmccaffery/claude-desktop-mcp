@@ -1,0 +1,33 @@
+# Copyright 2026 Deavon M. McCaffery
+# SPDX-License-Identifier: Apache-2.0
+
+# yaml-language-server: $schema=https://raw.githubusercontent.com/DavidAnson/markdownlint-cli2/refs/heads/main/schema/markdownlint-cli2-config-schema.json
+config:
+  default: true
+  line-length:
+    line_length: 120
+    heading_line_length: 120
+    code_block_line_length: 120
+    tables: false
+  list-marker-space: false
+  table-column-style:
+    style: aligned
+  code-block-style: false
+  code-fence-style:
+    style: backtick
+  no-inline-html:
+    allowed_elements:
+      - span
+      - div
+      - br
+      - p
+      - script
+  no-space-in-code: false
+  link-fragments: false
+  single-title:
+    front_matter_title: "^\\s*heading\\s*[:=]"
+gitignore: true
+ignores:
+  - CHANGELOG.md
+  - AGENTS.md
+  - CLAUDE.md

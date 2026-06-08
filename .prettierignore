@@ -1,0 +1,7 @@
+# Release-please owns the changelog and manifest.
+CHANGELOG.md
+.release-please-manifest.json
+
+# Claude Code owns settings.json formatting; the sandbox also blocks rewriting it.
+.claude/settings.json
+.claude/settings.local.json

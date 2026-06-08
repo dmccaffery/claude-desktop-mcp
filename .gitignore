@@ -1,0 +1,10 @@
+# claude code planning artifacts (may contain local absolute paths)
+.claude/plans/
+
+# runtime event logs written by hack/run.sh
+logs/
+
+.venv/
+node_modules/
+.pytest_cache/
+__pycache__/
