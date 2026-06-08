@@ -6,10 +6,10 @@
 # Spin up the fake MCP servers locally and point Claude Desktop at them.
 #
 # What it does:
-#   1. Builds the local server (`uv sync`) and health-checks both modes.
+#   1. Builds the local server (`uv sync`) and health-checks all three modes.
 #   2. Backs up your existing claude_desktop_config.json.
-#   3. Swaps in a config with `fake-mcp-full` and `fake-mcp-gateway` entries that
-#      run *this* working copy over stdio.
+#   3. Swaps in a config with `fake-mcp-full`, `fake-mcp-search`, and
+#      `fake-mcp-gateway` entries that run *this* working copy over stdio.
 #   4. Restarts Claude Desktop so it connects, then tails the JSONL event logs.
 #   5. On exit (Ctrl-C / Enter / error) a trap restores your original config.
 #
@@ -94,7 +94,7 @@ log "Syncing dependencies (uv sync)…"
   echo "server binary missing after uv sync: $SERVER_BIN" >&2
   exit 1
 }
-log "Health-checking both modes…"
+log "Health-checking all three modes…"
 "$REPO_ROOT/.venv/bin/python" - <<'PY'
 import asyncio
 from fastmcp import Client
@@ -102,7 +102,7 @@ from claude_desktop_mcp.config import Config
 from claude_desktop_mcp.server import build_server
 
 async def main():
-    for mode in ("full", "gateway"):
+    for mode in ("full", "search", "gateway"):
         async with Client(build_server(Config(mode=mode))) as client:
             tools = await client.list_tools()
             print(f"    {mode}: {len(tools)} tool(s) listed")
@@ -133,6 +133,11 @@ config = {
             "args": [],
             "env": {"MCP_MODE": "full", "MCP_LOG_FILE": f"{log_dir}/full.jsonl"},
         },
+        "fake-mcp-search": {
+            "command": server_bin,
+            "args": [],
+            "env": {"MCP_MODE": "search", "MCP_LOG_FILE": f"{log_dir}/search.jsonl"},
+        },
         "fake-mcp-gateway": {
             "command": server_bin,
             "args": [],
@@ -150,15 +155,16 @@ log "Swapped in fake MCP config -> $CONFIG_FILE"
 # --------------------------------------------------------------------------- #
 restart_claude "connect to the fake MCP servers"
 
-touch "$LOG_DIR/full.jsonl" "$LOG_DIR/gateway.jsonl"
+touch "$LOG_DIR/full.jsonl" "$LOG_DIR/search.jsonl" "$LOG_DIR/gateway.jsonl"
 cat <<EOF
 
   Claude Desktop is now wired to:
     • fake-mcp-full     (108 tools, no search)        -> $LOG_DIR/full.jsonl
+    • fake-mcp-search   (search only, catalog hidden)  -> $LOG_DIR/search.jsonl
     • fake-mcp-gateway  (108 tools + search, first)   -> $LOG_DIR/gateway.jsonl
 
   Watching the event logs. Press Ctrl-C to stop and restore your original config.
 
 EOF
 # NOT `exec` — the shell must stay alive so the EXIT trap restores the config.
-tail -f "$LOG_DIR/full.jsonl" "$LOG_DIR/gateway.jsonl"
+tail -f "$LOG_DIR/full.jsonl" "$LOG_DIR/search.jsonl" "$LOG_DIR/gateway.jsonl"
