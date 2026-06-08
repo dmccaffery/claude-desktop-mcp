@@ -21,8 +21,9 @@ help: ## Show available targets
 		| awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
 
 .PHONY: fmt
-fmt: node_modules ## Install locked npm deps and auto-format the repo with prettier
+fmt: node_modules ## Auto-format the repo: prettier (web/docs) + ruff (Python)
 	@ $(NPMBIN)/prettier --write .
+	@ uv run --extra dev ruff format .
 
 .PHONY: lint
 lint: fmt ## Format all files in the repository and lint markdown

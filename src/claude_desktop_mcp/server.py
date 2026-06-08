@@ -21,6 +21,7 @@ from claude_desktop_mcp.middleware import ModeMiddleware, ObservabilityMiddlewar
 from claude_desktop_mcp.observability import EventLogger
 from claude_desktop_mcp.search import SearchIndex
 
+
 def _search_tool_description() -> str:
     """Build the search tool's description, listing the domains it can reach.
 
