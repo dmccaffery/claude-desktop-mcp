@@ -5,8 +5,8 @@
   "description": "Lint, formatting, and test toolchain for the claude desktop mcp demo.",
   "license": "MIT",
   "devDependencies": {
-    "markdownlint-cli2": "^0.22.1",
-    "prettier": "^3.0.0",
+    "markdownlint-cli2": "^0.23.0",
+    "prettier": "^3.9.4",
     "@modelcontextprotocol/inspector": "^0.22.0"
   }
 }
