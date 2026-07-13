@@ -13,16 +13,16 @@ authors = [
   { name = "Deavon M. McCaffery", email = "dmccaffery@users.noreply.github.com" }
 ]
 keywords = ["agentcore", "claude", "claude-desktop", "mcp", "tool-search"]
-dependencies = ["fastmcp>=2.0.0"]
+dependencies = ["fastmcp>=3.4.3"]
 
 [project.scripts]
 claude-desktop-mcp = "claude_desktop_mcp.__main__:main"
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0",
+    "pytest>=9.1.1",
     "pytest-asyncio>=0.24",
-    "ruff>=0.15.16",
+    "ruff>=0.15.20",
 ]
 
 [build-system]
